@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Snackbar, Alert } from "@mui/material";
 import PeopleIcon from "@mui/icons-material/People";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -21,6 +22,7 @@ import { createSession } from "../api/sessionApi";
 import colors from "../theme/colors";
 
 function StudentSearch({ onSessionCreated }) {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedClass, setSelectedClass] = useState("ALL");
@@ -121,9 +123,13 @@ function StudentSearch({ onSessionCreated }) {
         "success"
       );
 
+      setCreatedSessionInfo(sessionData);
+
       if (onSessionCreated) {
         onSessionCreated(sessionData);
       }
+
+      navigate("/camera", { state: sessionData });
     } catch (err) {
       console.error("Failed to create capture session:", err);
       showSnackbar("Failed to create session with backend API. Please retry.", "error");
