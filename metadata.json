@@ -1,0 +1,10 @@
+{
+  "name": "APS Enrollment System",
+  "description": "APS Enrollment photo capture and BSEK submission management system.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

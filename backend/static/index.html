@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Photo Upload Test</title>
+</head>
+<body>
+
+<h2>Upload Test</h2>
+
+<input type="file" id="image">
+
+<button onclick="uploadImage()">
+    Upload
+</button>
+
+<br><br>
+
+<img id="preview" width="300">
+
+<script>
+
+async function uploadImage(){
+
+    const file=document.getElementById("image").files[0];
+
+    const formData=new FormData();
+
+    formData.append("image",file);
+
+    const response=await fetch(
+        "/session/test/upload",
+        {
+            method:"POST",
+            body:formData
+        });
+
+    const data=await response.json();
+
+    document.getElementById("preview").src=
+    "data:image/jpeg;base64,"+
+    data.data.image;
+
+}
+
+</script>
+
+</body>
+</html>
