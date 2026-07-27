@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from services.logger import logger
 
 from schemas.session import (
     SessionCreateRequest,
@@ -25,6 +26,9 @@ router = APIRouter(
 def create_new_session(request: SessionCreateRequest):
 
     session = create_session(request.student_name)
+    logger.info(
+    f"Session created | {request.student_name} | Session={session['session_id']}"
+    )
 
     return {
         "success": True,

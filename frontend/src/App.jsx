@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import StudentSearch from "./pages/StudentSearch";
 import CameraPage from "./pages/CameraPage";
-import PreviewPage from "./pages/PreviewPage";
+import MobileCamera from "./pages/MobileCamera";
 
 function App() {
   return (
@@ -10,7 +10,7 @@ function App() {
       <Routes>
         <Route path="/" element={<StudentSearch />} />
         <Route path="/camera" element={<CameraPage />} />
-        <Route path="/preview" element={<PreviewPage />} />
+        <Route path="/mobile" element={<MobileCamera />} />
       </Routes>
     </BrowserRouter>
   );

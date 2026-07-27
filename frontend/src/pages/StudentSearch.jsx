@@ -113,13 +113,12 @@ function StudentSearch({ onSessionCreated }) {
       const res = await createSession(selectedStudent.name);
 
       const sessionData = {
-        sessionId: res.session_id,
+        sessionId: res.data.session_id,
         student: selectedStudent,
         createdAt: new Date().toISOString(),
       };
-
       showSnackbar(
-        `Session created for ${selectedStudent.name}! (ID: ${res.session_id})`,
+        `Session created for ${selectedStudent.name}! (ID: ${res.data.session_id})`,
         "success"
       );
 
