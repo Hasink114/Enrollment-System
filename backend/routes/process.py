@@ -1,35 +1,38 @@
 from pathlib import Path
 
-import cv2
 from fastapi import APIRouter, HTTPException
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 
 from services.session_service import (
     get_session,
     update_final_filename,
     update_session_status
 )
-from services.face_service import face_service
 from services.background_service import background_service
 from services.logger import logger
-from services.session_service import delete_session
-from services.session_service import update_session_status
+
 
 router = APIRouter(
     prefix="/process",
     tags=["Process"]
 )
 
+
 UPLOAD_DIR = Path("uploads")
 PROCESSED_DIR = Path("processed")
 FINAL_DIR = Path("final")
 
+UPLOAD_DIR.mkdir(exist_ok=True)
 PROCESSED_DIR.mkdir(exist_ok=True)
 FINAL_DIR.mkdir(exist_ok=True)
 
 
 @router.post("/{session_id}")
 def process_photo(session_id: str):
+
+    # ---------------------------------------------------------
+    # 1. FIND ORIGINAL UPLOADED PHOTO
+    # ---------------------------------------------------------
 
     image_path = UPLOAD_DIR / f"{session_id}.jpg"
 
@@ -39,6 +42,10 @@ def process_photo(session_id: str):
             detail="Uploaded image not found."
         )
 
+    # ---------------------------------------------------------
+    # 2. GET SESSION
+    # ---------------------------------------------------------
+
     session = get_session(session_id)
 
     if session is None:
@@ -47,60 +54,143 @@ def process_photo(session_id: str):
             detail="Session not found."
         )
 
-    result = face_service.detect_face(str(image_path))
+    student_name = (
+        session["student_name"]
+        .strip()
+        .replace(" ", "_")
+    )
 
-    if result["count"] == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="No face detected."
-        )
+    # ---------------------------------------------------------
+    # 3. KEEP ORIGINAL PHOTO EXACTLY AS CAPTURED
+    # ---------------------------------------------------------
+    #
+    # IMPORTANT:
+    #
+    # We intentionally DO NOT:
+    #
+    # - detect the face
+    # - crop the face
+    # - zoom the face
+    # - calculate margins
+    # - resize the student's composition
+    # - change the position of the student
+    #
+    # The photograph is already framed correctly by the
+    # camera operator.
+    #
+    # ---------------------------------------------------------
 
-    image = cv2.imread(str(image_path))
+    original = Image.open(image_path).convert("RGB")
 
-    face = result["faces"][0]
+    logger.info(
+        f"Processing original photo | "
+        f"{student_name} | "
+        f"Session={session_id} | "
+        f"Resolution={original.width}x{original.height}"
+    )
 
-    x = int(face["x"])
-    y = int(face["y"])
-    w = int(face["width"])
-    h = int(face["height"])
+    # ---------------------------------------------------------
+    # 4. SAVE ORIGINAL TO PROCESSED DIRECTORY
+    # ---------------------------------------------------------
 
-    margin_x = int(w * 0.45)
-    top_margin = int(h * 0.75)
-    bottom_margin = int(h * 0.35)
+    processed_path = (
+        PROCESSED_DIR /
+        f"{session_id}_original.jpg"
+    )
 
-    x1 = max(0, x - margin_x)
-    y1 = max(0, y - top_margin)
+    original.save(
+        processed_path,
+        format="JPEG",
+        quality=100,
+        subsampling=0
+    )
 
-    x2 = min(image.shape[1], x + w + margin_x)
-    y2 = min(image.shape[0], y + h + bottom_margin)
-
-    cropped = image[y1:y2, x1:x2]
-
-    crop_path = PROCESSED_DIR / f"{session_id}_crop.jpg"
-
-    cv2.imwrite(str(crop_path), cropped)
-
-    student_name = session["student_name"].strip().replace(" ", "_")
+    # ---------------------------------------------------------
+    # 5. REMOVE ORIGINAL BACKGROUND
+    #    AND REPLACE IT WITH APS BLUE
+    # ---------------------------------------------------------
 
     final_path = FINAL_DIR / f"{student_name}.jpg"
 
     background_service.replace_with_blue(
-        str(crop_path),
+        str(processed_path),
         str(final_path)
     )
 
-    # Save filename in session
-    update_session_status(session_id, "processing")
-    update_final_filename(session_id, final_path.name)
-    update_session_status(session_id, "uploaded")
+    # ---------------------------------------------------------
+    # 6. OPTIONAL QUALITY PRESERVATION
+    # ---------------------------------------------------------
+    #
+    # We do NOT upscale or resize the image.
+    #
+    # We only apply extremely light sharpening if the
+    # segmentation service produced a slightly soft image.
+    #
+    # The dimensions remain EXACTLY the same as the
+    # original photograph.
+    #
+    # ---------------------------------------------------------
+
+    final_image = Image.open(final_path).convert("RGB")
+
+    # Very light sharpening only.
+    final_image = final_image.filter(
+        ImageFilter.UnsharpMask(
+            radius=0.6,
+            percent=105,
+            threshold=3
+        )
+    )
+
+    # Preserve original resolution and save at maximum JPEG quality.
+    final_image.save(
+        final_path,
+        format="JPEG",
+        quality=100,
+        subsampling=0,
+        optimize=True
+    )
+
+    # ---------------------------------------------------------
+    # 7. SAVE FINAL FILENAME IN SESSION
+    # ---------------------------------------------------------
+
+    update_session_status(
+        session_id,
+        "processing"
+    )
+
+    update_final_filename(
+        session_id,
+        final_path.name
+    )
+
+    update_session_status(
+        session_id,
+        "uploaded"
+    )
+
+    # ---------------------------------------------------------
+    # 8. LOG
+    # ---------------------------------------------------------
 
     logger.info(
-    f"Passport generated | {student_name} | Session={session_id}"
+        f"Passport generated successfully | "
+        f"{student_name} | "
+        f"Session={session_id} | "
+        f"Resolution={final_image.width}x{final_image.height}"
     )
+
+    # ---------------------------------------------------------
+    # 9. RESPONSE
+    # ---------------------------------------------------------
 
     return {
         "success": True,
-        "message": "Passport image generated.",
-        "crop_image": crop_path.name,
-        "final_image": final_path.name
+        "message": "Passport image generated successfully.",
+        "student_name": student_name,
+        "original_image": processed_path.name,
+        "final_image": final_path.name,
+        "width": final_image.width,
+        "height": final_image.height
     }
